@@ -1,7 +1,0 @@
-"0","df %>% filter(Type==""CPU"" & Vendor %in% c(""Intel"", ""AMD"") & Release.Year >= 2010 & Release.Year <= 2019) %>%"
-"0","  group_by(Release.Year, Vendor) %>% "
-"0","  summarise(mean_transistors = mean(Transistors..million., na.rm = TRUE)) %>% "
-"0","  ggplot(aes(x=Release.Year, y=mean_transistors, color=Vendor, group=Vendor)) +"
-"0","  geom_line() +"
-"0","  labs(title=""Primerjava števila tranzistorjev med Intel in AMD"", x="""")"
-"2","`summarise()` has grouped output by 'Release.Year'. You can override using the `.groups` argument."

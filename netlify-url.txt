@@ -1,1 +1,0 @@
-https://cpu-gpu-analysis.netlify.app/

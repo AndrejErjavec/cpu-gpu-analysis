@@ -1,4 +1,0 @@
-"0","group_release_year %>% "
-"0","  ggplot(aes(x=Release.Year, y=mean_size)) +"
-"0","  geom_line() +"
-"0","  labs(x=""Leto"", y=""Velikost tranzistorjev (nm)"", title=""Povprečna velikost tranzsitorjev (v nanometrih) po letih"")"

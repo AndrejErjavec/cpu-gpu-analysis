@@ -1,2 +1,0 @@
-"0","df  <- read.csv('chip_dataset.csv')"
-"0","head(df) %>% knitr::kable()"

@@ -1,4 +1,0 @@
-"0","df %>% "
-"0","  ggplot(aes(x=Process.Size..nm., y=Transistors..million.)) +"
-"0","  geom_point() +"
-"0","  geom_smooth(method=lm, se=FALSE)"

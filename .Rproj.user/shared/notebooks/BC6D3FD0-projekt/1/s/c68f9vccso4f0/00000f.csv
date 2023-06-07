@@ -1,4 +1,0 @@
-"0","df %>% filter(Type==""CPU"" & Vendor %in% c(""Intel"", ""AMD"") & Release.Year >= 2010) %>% "
-"0","  ggplot(aes(x=Vendor, y=Freq..MHz., fill=Vendor)) +"
-"0","  geom_boxplot() +"
-"0","  labs(title=""Primerjava frekvenc med Intel in AMD"", y=""frekvenca (MHz)"")"

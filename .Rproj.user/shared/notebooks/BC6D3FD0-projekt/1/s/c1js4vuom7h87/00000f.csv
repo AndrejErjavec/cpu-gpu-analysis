@@ -1,6 +1,0 @@
-"0","df %>% filter(Type==""GPU"" & Vendor %in% c(""NVIDIA"", ""AMD"") & Release.Year >= 2010) %>% "
-"0","  group_by(Vendor, Release.Year) %>% "
-"0","  summarise(mean_tdp = mean(TDP..W., na.rm=TRUE)) %>% "
-"0","  ggplot(aes(x=Release.Year, y=mean_tdp, color=Vendor, group=Vendor)) +"
-"0","  geom_line()"
-"2","`summarise()` has grouped output by 'Vendor'. You can override using the `.groups` argument."

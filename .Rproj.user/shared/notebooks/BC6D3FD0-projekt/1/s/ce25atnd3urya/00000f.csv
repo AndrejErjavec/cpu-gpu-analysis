@@ -1,3 +1,0 @@
-"0","df %>% filter(Type==""CPU"" & Vendor %in% c(""Intel"", ""AMD"") & Release.Year >= 2010) %>% "
-"0","  ggplot(aes(x=Vendor, y=Transistors..million., fill=Vendor)) +"
-"0","  geom_boxplot()"

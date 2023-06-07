@@ -1,4 +1,0 @@
-"0","df %>% filter(Type==""CPU"" & Vendor %in% c(""Intel"", ""AMD"") & Release.Year >= 2010 & Release.Year <= 2019) %>% "
-"0","  ggplot(aes(x=Vendor, y=Transistors..million., fill=Vendor)) +"
-"0","  geom_boxplot() +"
-"0","  labs(title=""Primerjava števila tranzistorjev med Intel in AMD"", y=""število tranzistorjev"")"
