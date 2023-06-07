@@ -1,0 +1,12 @@
+"0","df %>% "
+"0","  mutate(Release.Year = year(ymd(Release.Date))) %>% "
+"0","  filter(Type==""CPU"" & Vendor %in% c(""Intel"", ""AMD"") & Release.Year >= 2010) %>% "
+"0","  group_by(Release.Year, Vendor) %>% "
+"0","  mutate(mean_process_size = round(mean(Process.Size..nm., na.rm = FALSE), 0)) %>% "
+"0","  ggplot(aes(x=Release.Year, y=mean_process_size, group=Vendor, color=Vendor)) +"
+"0","  geom_line() +"
+"0","  labs(title=""Primerjava nanometrske tehnologije med procesorji Intel in AMD"")"
+"2","Warning: [38;5;252mThere was 1 warning in `mutate()`.[39m
+[38;5;252m[36mℹ[38;5;252m In argument: `Release.Year = year(ymd(Release.Date))`.[39m
+Caused by warning:
+[33m![39m  75 failed to parse."

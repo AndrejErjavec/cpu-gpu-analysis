@@ -1,0 +1,5 @@
+"0","dfno2 %>% "
+"0","  ggplot(aes(x=Die.Size..mm.2., y=TDP..W.)) +"
+"0","  geom_point(aes(colour=Type), size=2, shape=1) +"
+"0","  geom_smooth(method=lm, se=FALSE) +"
+"0","  labs(title=""Korelacija med velikostjo tiskanega vazja in porabo energije"", x=""Velikost tiskanega vezja (mm^2)"", y=""poraba energije (W)"")"

@@ -1,0 +1,4 @@
+"0","group_release_year %>% "
+"0","  ggplot(aes(x=Release.Year, y=mean_transistor_count, group=Type, color=Type)) +"
+"0","  geom_line() +"
+"0","  labs(x=""Leto"", y=""Število tranzistorjev"", title=""Povprečno število tranzsitorjev (v milijonih) po letih"")"

@@ -1,0 +1,5 @@
+"0","df %>% "
+"0","  group_by(Release.Year) %>% "
+"0","  summarise(mean_size=mean(Process.Size..nm., na.rm = TRUE)) %>% "
+"0","  ggplot(aes(x=Release.Year, y=mean_size)) +"
+"0","  geom_line()"

@@ -1,0 +1,13 @@
+"0",""
+"0","group_release_type %>% filter(Type==""CPU"" & Vendor %in% c(""Intel"", ""AMD"") & Release.Year >= 2010) %>% "
+"0","  ggplot(aes(x=Release.Year, y=Transistors..million., fill=Vendor)) +"
+"0","  geom_line()"
+"1","[1m[33mError[39m in `filter()`:[22m
+[38;5;252m[36mℹ[38;5;252m In argument: `Type == ""CPU"" & Vendor %in% c(""Intel"", ""AMD"") & ...`.
+[36mℹ[38;5;252m In group 1: `Release.Year = 2000`.[39m
+[1mCaused by error in `Vendor %in% c(""Intel"", ""AMD"")`:[22m
+[33m![39m object 'Vendor' not found
+Backtrace:
+[90m  1. [39m... %>% ...
+[90m 10. [39mVendor %in% c(""Intel"", ""AMD"")
+"

@@ -1,0 +1,7 @@
+"0","df %>% filter(Type==""GPU"" & Vendor %in% c(""AMD"", ""NVIDIA"") & Release.Year >= 2010) %>%"
+"0","  group_by(Release.Year, Vendor) %>% "
+"0","  summarise(mean_frequency = mean(Freq..MHz., na.rm = TRUE)) %>% "
+"0","  ggplot(aes(x=Release.Year, y=mean_frequency, color=Vendor, group=Vendor)) +"
+"0","  geom_line() +"
+"0","  labs(title=""Primerjava frekvenc med Intel in AMD"")"
+"2","`summarise()` has grouped output by 'Release.Year'. You can override using the `.groups` argument."

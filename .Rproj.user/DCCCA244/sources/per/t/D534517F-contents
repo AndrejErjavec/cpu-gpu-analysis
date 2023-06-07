@@ -1,0 +1,338 @@
+---
+title: "Analiza zmogljivosti procesorjev in grafičnih kartic"
+author: "Andrej Erjavec"
+date: "2023-06-06"
+output: 
+  html_document: 
+    toc: yes
+    toc_float: yes
+bibliography: bibliography.bib
+link-citations: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, error = FALSE)
+library(tidyverse)
+library(lubridate)
+library(gridExtra)
+```
+
+## Uvod
+Zaradi stalnega razvoja in vlaganja v razvoj računalniških čipov se zmogljivost le-teh iz leta v leto povečuje. K temu največ pripomorejo izboljšave na področju litografije, ki je proces tiskanja tranzistorjev na silicijevo ploščo. Posledično se velikosti tranzistorjev iz leta v leto manjšajo, kar omogoča integracijo vse večjega števila tranzistorjev na površino čipa, kar pomeni povečanje zmogljivosti. Manjši tranzistorji nimajo ugodnega vpliva le na zmogljivost, ampak tudi na učinkovitost čipov. Zaradi vse manjših razdalj med njimi se nemreč zmanjša tudi poraba energije.
+
+Trend, ki napoveduje razvoj čipov v smislu števila tranzistorjev, se opira na Moorov zakon iz leta 1965 [@MooresLaw], ki pravi, da se število tranzistorjev na tiskanem vezju podvoji približno vsaki dve leti. Moorov zakon sicer ni pravilo, ampak temelji na večletnem opazovanju večanja števila tranzistorjev in zmogljivosti čipov.
+
+V okviru te analize bi rad na realnih podatkih čipov predstavil trend povečevanja zmogljivosti in opazoval korelacijo med zmogljivostjo, porabo energije in številom tranzistorjev pri računalniških procesorjih in grafičnih karticah. Obenem bi preveril ali Moorov zakon v zadnjih nekaj letih še vedno velja.
+
+
+## Predstavitev podatkov
+Podatki iz zbirke **CPU and GPU Performances Dataset** [@Dataset] pokrivajo vse glavne računalniške procesorje in grafične kartice v obodbju med letoma 2000 in 2021. 
+
+```{r}
+df  <- read.csv('chip_dataset.csv')
+head(df) %>% knitr::kable()
+```
+
+```{r}
+# Add release year column
+df %>% mutate(Release.Year = year(ymd(Release.Date))) -> df
+```
+
+Podatkovni okvir ima skupno 4853 vrstic, od tega je 2185 procesorjev in 2668 grafičnih kartic, ter 13 stolpcev:
+
+* **Product:** Naziv procesorja oziroma grafične kartice (tip: character)
+* **Type:** Tip izdelka (CPU - procesor | GPU - grafična kartica) (tip: character)
+* **Release.Date:** Datum izdaje izdelka (tip: date)
+* **Process.Size..nm.:** Velikost tranzistorja oz. proizvodni proces v nm (tip: numeric)
+* **TDP..W.:** Thermal Design Power - poraba energije pri maksimalni obremenitvi v W (tip: numeric)
+* **Die.Size..mm.2:** Velikost integriranega vezja v mm^2 (tip: numeric)
+* **Transistors..million.:** Število tranzistorjev v milijonih (tip: numeric)
+* **Freq..MHz.:** Frekvenca procesorja v MHz (tip: numeric)
+* **Foundry:** Proizvajalec čipa (tip: character)
+* **Vendor:** Proizvajalec procesorja /grafične kartice (tip: character)
+
+Naslednji stoplci so relavantni samo za grafične kartice:
+
+* **FP16.GFLOPS:** Zmogljivost pri 16-bitnih operacijah s plavajočo vejico (tip: numeric)
+* **FP32.GFLOPS:** Zmogljivost pri 32-bitnih operacijah s plavajočo vejico (tip: numeric)
+* **FP64.GFLOPS:** Zmogljivost pri 64-bitnih operacijah s plavajočo vejico (tip: numeric)
+
+## Anliza podatkov
+
+Z uporabo tabel in grafov bi rad bolje predstavil podatke, korelacije med njimi in lastnosti ter ugotovitve, ki jih lahko iz njih izpeljem.
+
+Pred začetkom glavnega dela analize bom predstavil sestavo podatkov po proizvajalcu in tipu produkta ter preveril kateri proizvajalci proizvedejo največ čipov. 
+
+### Sestava podatkov po proizvajalcu in tipu produkta
+
+```{r}
+df %>% group_by(Vendor, Type) %>% summarise(n=n()) %>% arrange(Type, -n) %>% 
+  knitr::kable(caption = "Sestava podatkov po proizvajalcu in tipu produkta")
+```
+
+Med procesorji (tip CPU) nekoliko prevladuje Intel s 1242 primerki procesorjev, edini drugi proizvajalec procesorjev je AMD z 950 primerki. Med grafičnimi karticami je največ primerkov podjetja Nvidia, sledita AMD in Intel.
+
+---
+
+Pred izdelavo tabel sem opazil, da atribut <i>Foundry</i> pri več produktih ni znan oziroma ima vrednost <i>Unknown</i>. Takšnih vrstic izdelkov je 760. Iz podatkov je razvidno, da večina izdelkov z neznanim proizvajalcem čipa pripadajo podjetju AMD, ostali pa so nekateri starejši modeli grafičnih kartic Nvidia. Na tem mestu je vredno omeniti, da proizvajalec čipa in procesorja v večini primerov ni isto podjetje. Procesor lahko namreč uporablja čipe drugega proizvajalca, kar se dogaja v primeru, da proizvjalec procesorja nima lastnih proizvodnih obratov za izdelavo čipov.
+
+Pred izdelavo tabele deležev proizvajalcev sem iz podatkov odstranil vse izdelke, pri katerih proizvajalec čipa ni znan oziroma ima v tabeli atribut <i>Foundry</i> označen kot <i>Unknown</i>.
+
+```{r}
+df %>% filter(Foundry != "Unknown") -> dff
+```
+
+### Delež proizvedenih čipov po proizvjalcih
+
+```{r}
+dff %>% 
+  group_by(Foundry) %>% 
+  summarise(n=n()) %>% 
+  arrange(-n) %>% 
+  mutate(percentage=round(n/nrow(dff)*100, 2)) -> foundry_percent
+
+foundry_percent %>% knitr::kable(caption = "Delež proizvedenih čipov po proizvjalcih")
+```
+
+Največji proizvajalec čipov je podjetje TSMC, ki proizvede dobro polovico vseh čipov. Sledi podjetje Intel s približno 35 odstotnim deležem. Ostala podjetja proizvedejo skupaj dobrih 10% čipov.
+
+### Glavni proizvajalci čipov za procesorje
+```{r}
+df %>% 
+  filter(Type == "CPU") %>% 
+  {filtered <<- . ; .} %>% 
+  group_by(Foundry) %>% 
+  summarise(n=n()) %>% 
+  arrange(-n) %>% 
+  mutate(percentage=round(n/nrow(filtered)*100, 2)) %>% 
+  knitr::kable(caption = "Proizvajalci čipov za procesorje")
+```
+
+Če si ogledamo samo izdelke tipa CPU, vidimo, da največji delež čipov zanje proizvede Intel (dobrih 56%). Približno 35% procesorjev ima neznanega proizvajalca čipov. Ker vem, da so to večinoma procesorji znamke AMD, bi lahko sklepal, gre tu za njihove dobavitelje čipov. Po podatkih Wikipedie [@AMDchips] je glavni proizvajalec čipov za AMD podjetje TSMC, ampak ni edini, saj je poleg njega čipa za AMD proizvajal tudi Samsung, še pred tem pa tudi nekatera druga podjetja. Na tem mestu je torej nemogoče natnčno sklepati, ali gre pri neznanih proizvajalcih le za podjetje TSMC. Če bi bilo temu res tako, bi TMSC zasedel 39 odstotni delež proizvedenih čipov za procesorje.
+
+### Glavni proizvajalci čipov za grafične kartice
+```{r}
+dff %>% 
+  filter(Type == "GPU") %>% 
+  {filtered <<- . ; .} %>% 
+  group_by(Foundry) %>% 
+  summarise(n=n()) %>% 
+  arrange(-n) %>% 
+  mutate(percentage=round(n/nrow(filtered)*100, 2)) %>% 
+  knitr::kable(caption = "Proizvajalci čipov za grafične kartice")
+```
+
+Pri grafičnih karticah največ čipov proizvede TSMC - dobrih 81%. Vsi ostali proizvajalci imajo delež nižji od 10%.
+
+---
+
+V nadaljevanju bom predstavil trend večanja zmogljivosti in preveril korelacije med zmogljivostjo in ostalimi lastnostmi čipov.
+
+```{r}
+df %>% 
+  group_by(Release.Year, Type) %>% 
+  summarise(mean_size=round(mean(Process.Size..nm., na.rm = TRUE), 0),
+            mean_transistor_count=round(mean(Transistors..million., na.rm = TRUE), 0),
+            mean_freq=mean(Freq..MHz., na.rm = TRUE),
+            mean_tdp=mean(TDP..W., na.rm = TRUE),
+            mean_die_size=mean(Die.Size..mm.2., na.rm = TRUE)) -> group_release_type
+
+df %>%
+  group_by(Release.Year) %>% 
+  summarise(mean_size=round(mean(Process.Size..nm., na.rm = TRUE), 0),
+            mean_transistor_count=round(mean(Transistors..million., na.rm = TRUE), 0)) -> group_release
+```
+
+### Manjšanje velikosti tranzsitorjev
+
+Spodnji graf prikazije povprečno velikost tranzistorjev za CPU in GPU. Iz grafa je razvidno stalno manjšanje velikosti tranzistorjev. Med letoma 2000 in 2010 je povprečna velikost dokaj konstantno upadala, po letu 2010 pa se graf nekoliko zravna. Najmanjši napredek je viden v zadnjih nekaj letih, ko se velikost tranzistorjev ne spreminja več tako drastično.
+
+```{r}
+group_release_type %>% 
+  ggplot(aes(x=Release.Year, y=mean_size, group=Type, color=Type)) +
+  geom_line() +
+  labs(x="Leto", y="Velikost tranzistorjev (nm)", title="Povprečna velikost tranzsitorjev (v nanometrih) po letih")
+```
+
+
+Ker imata med proizvajalci procesorjev najvišji tržni delež podjetji Intel in AMD, me je zanimalo kakšne so razlike v nanometrski tehnologiji med njima. Kot že prej ugotovljeno, ima Intel svoje obrate za proizvodnjo čipov, zato večino svojih potreb pokrije sam. AMD za razliko od Intela svojih obratov nima in uporablja čipe drugih proizvajalcev.
+
+
+```{r}
+group_release %>% 
+  select(Release.Year, mean_size) %>% 
+  filter(Release.Year %% 2 == 0) %>% 
+  knitr::kable(caption = "Povprečna velikost tranzsitorjev (v nanometrih) po letih")
+```
+
+### Rast števila tranzistorjev
+
+Predstavil bom še rast povprečnega števila tranzistorjev po letih.
+
+```{r}
+group_release_type %>% 
+  ggplot(aes(x=Release.Year, y=mean_transistor_count, group=Type, color=Type)) +
+  geom_line() +
+  labs(x="Leto", y="Število tranzistorjev", title="Povprečno število tranzsitorjev (v milijonih) po letih")
+```
+
+Vse do leta 2016 je povprečno število tranzsitorjev grafičnih kartic precej dobro sledilo procesorjem, kasneje pa je začelo močno rasti in je prehitelo število tranzistorjev v procesorjih. Po podatkih iz leta 2021 je povprečno števillo tranzistorjev na čipih grafičnih kartic približno 2x večje od njihovega števila na procesorjih.
+
+```{r}
+group_release %>% 
+  select(Release.Year, mean_transistor_count) %>% 
+  filter(Release.Year %% 2 == 0) %>% 
+  mutate(increase=round(mean_transistor_count/lag(mean_transistor_count), 2)) %>%
+  knitr::kable(caption = "Povprečno število tranzsitorjev (v milijonih) po letih")
+```
+
+Tabela prikazuje rast števila tranzistorjev za procesorje in grafične kartice skupaj. Ker Moorov zakon pravi, da se število tranzsitorjev podvoji približno vsaki dve leti, sem kot takšen izbral tudi interval prikaza vrednosti v tabeli. Stolpec <i>increase</i> predstavlja količnik med povprečnim številom tranzistorjev za neko obdobje in prejšnje obdobje dveh let. Pove nam torej za koliko se je število tranzistorjev povečalo v primerjavi s prejšnjim obdobjem. Tako količnik z vrednostjo 2 pomeni, da se je število tranzistorjev v primerjavi s prejšjim obdobjem dveh let podvojilo. Kot je razvidno iz vrednosti se količniki gibljejo okrog vrednosti 2, na podlagi česar bi lahko zaključil, da Moorov zakon še vedno drži.
+
+### Rast frekvenc procesorjev in grafičnih kartic
+
+```{r}
+group_release_type %>% 
+  ggplot(aes(x=Release.Year, y=mean_freq, group=Type, color=Type)) +
+  geom_line() +
+  labs(x="Leto", y="Frekvenca", title="Povprečna frekvenca procesorjev po letih")
+```
+
+Pri primerjavi frekvenc med procesorji in grafičnimi karticami je mogoče opaziti, da so te veliko višje pri procesorjih. Rast povprečne frekvence procesorjev je bila najbolj očitna med letoma 2000 in 2005, po letu 2005 pa se je precej upočasnila in se v zadnjih nekaj letih giblje med 2.5GHz in 3GHz. Pri čipih grafičnih kartic je drugače - kakor je razvidno z grafa je rast frekvenc skozi leta precej konstantna.
+
+### Korelacije med lastnostmi čipov
+
+Pred izdelavo grafov sem iz podatkov odstranil osamelce iz odvisne spremenljivke.
+
+```{r}
+quartiles <- quantile(df$Transistors..million., probs=c(.25, .75), na.rm = TRUE)
+IQR <- IQR(df$Transistors..million., na.rm = TRUE)
+
+Lower <- quartiles[1] - 1.5*IQR
+Upper <- quartiles[2] + 1.5*IQR 
+
+dfno1 <- subset(df, df$Transistors..million. > Lower & df$Transistors..million. < Upper)
+
+dfno1 %>% 
+  ggplot(aes(x=Process.Size..nm., y=Transistors..million.)) +
+  geom_point(aes(colour=Type), size=2, shape=1) +
+  geom_smooth(method=lm, se=FALSE) +
+  labs(title="Korelacija med velikostjo in številom tranzistorjev", x="velikost tranzistorjev (nm)", y="število tranztistorjev (milijoni)")
+```
+
+Pričakovano se število tranzistorjev na integriranem vezju povečuje z manjšanjem njihove velikosti. Spremenljivki sta torej negativno korelirani.
+
+```{r}
+quartiles <- quantile(df$TDP..W., probs=c(.25, .75), na.rm = TRUE)
+IQR <- IQR(df$TDP..W., na.rm = TRUE)
+
+Lower <- quartiles[1] - 1.5*IQR
+Upper <- quartiles[2] + 1.5*IQR 
+
+dfno2 <- subset(df, df$TDP..W. > Lower & df$TDP..W. < Upper)
+
+
+dfno2 %>% 
+  ggplot(aes(x=Freq..MHz., y=TDP..W.)) +
+  geom_point(aes(colour=Type), size=2, shape=1) +
+  geom_smooth(method=lm, se=FALSE) +
+  labs(title="Korelacija med frekvenco in porabo energije", x="frekvenca (MHz)", y="poraba energije (W)")
+```
+
+Poraba energije in frekvenca procesorja sta pozitivno korelirani spremenljivki. Iz grafa je lepo razvidno tudi, da grafične kartice dosegajo precej nižje frekvence od procesorjev. Zanimivo je, da sta razpona frekvenc za procesorje in grafične kartice zelo lepo ločena in tvorita skoraj ločeni skupini na grafu.
+
+
+```{r}
+dfno2 %>% 
+  ggplot(aes(x=Die.Size..mm.2., y=TDP..W.)) +
+  geom_point(aes(colour=Type), size=2, shape=1) +
+  geom_smooth(method=lm, se=FALSE) +
+  labs(title="Korelacija med velikostjo tiskanega vazja in porabo energije", x="Velikost tiskanega vezja (mm^2)", y="poraba energije (W)")
+```
+
+Z večanjem velikosti tiskanih vezij se povečuje tudi poraba energije. Tudi ti dve spremenljivki sta pozitivno korelirani.
+
+
+### Primerjava procesorjev Intel in AMD
+
+Na koncu analize bi rad primerjal še naketere lastnosti in našel morebitne razlike med procesorji Intel in AMD. Predvsem me zanima ali v zadnjih letih obstajajo razlike v frekvenci in številu tranzistorjev med proizvajalcema. Za primerjavo sem izbral obdobje od leta 2010 do 2021.
+
+```{r}
+df %>% 
+  filter(Type=="CPU" & Vendor %in% c("Intel", "AMD") & Release.Year >= 2010) %>% 
+  group_by(Release.Year, Vendor) %>% 
+  mutate(mean_process_size = round(mean(Process.Size..nm., na.rm = TRUE), 0)) %>% 
+  ggplot(aes(x=Release.Year, y=mean_process_size, group=Vendor, color=Vendor)) +
+  geom_line() +
+  labs(title="Primerjava nanometrske tehnologije med procesorji Intel in AMD", x="Leto", y="velikost proizvodnega procesa")
+```
+
+Iz zgornjega grafa lahko povzamam, da je Intel vse do leta 2018 držal prednost pred podjetjem AMD v smislu uporabljene nanometrske tehnologije čipov, zanimiv pa je pogled od tega leta dalje, saj je z grafa opazno, da je AMD prešel na novejšo tehnologijo in s tem prehitel Intel v uporabljeni velikosti tranzistorjev. Zadnji podatki iz leta 2021 kažejo, da je AMD že uporabljal čipe proizvedene na 7 nanometrskem procesu, med tem ko je Intel ostal na 14 nanometrski tehnologiji. Družina Intel procesorjev Rocket Lake [@RocketLake] iz leta 2021 je tako uporabljala 14 nanometrsko tehnologijo, med tem, ko je AMD-jeva družina Zen3 [@Zen3] iz konca leta 2020 že uporabljala 7 nanometrske čipe proizvajalca TSMC.
+
+
+```{r}
+df %>% filter(Type=="CPU" & Vendor %in% c("Intel", "AMD") & Release.Year >= 2010) %>% 
+  ggplot(aes(x=Vendor, y=Freq..MHz., fill=Vendor)) +
+  geom_boxplot() +
+  labs(title="Primerjava frekvenc med Intel in AMD", y="frekvenca (MHz)")
+```
+
+```{r}
+df %>% filter(Type=="CPU" & Vendor %in% c("Intel", "AMD") & Release.Year >= 2010) %>%
+  group_by(Release.Year, Vendor) %>% 
+  summarise(mean_frequency = mean(Freq..MHz., na.rm = TRUE)) %>% 
+  ggplot(aes(x=Release.Year, y=mean_frequency, color=Vendor, group=Vendor)) +
+  geom_line() +
+  labs(title="Primerjava frekvenc med Intel in AMD", x="leto", y="frekvenca (MHz)")
+```
+
+Pri primerjavi frekvenc procesorjev od leta 2015 dalje lahko povzamem, da imajo AMD procesorji v povprečju dosegajo nekoliko višje frekvence od Intelovih procesorjev. Tudi zgodovinsko gledano so pri AMD proizvajali procesorje z višjim taktom. Opaziti pa je mogoče, da imajo Intel procesorji precej večjo variabilnost frekvenc kot tisti od proizvajalca AMD.
+
+```{r}
+df %>% filter(grepl("Threadripper|Xeon", Product) & Release.Year >= 2010) %>% 
+  group_by(Vendor) %>% 
+  mutate(Vendor=ifelse(Vendor=="Intel", "Intel Xeon", "AMD Threadripper")) %>% 
+  summarise(mean_frequency = mean(Freq..MHz., na.rm = TRUE),
+            mean_transistors = mean(Transistors..million., na.rm = TRUE),
+            mean_tdp=mean(TDP..W., na.rm=TRUE)) %>% 
+  knitr::kable(caption="Primerjava Intel Xeon in AMD Threadripper procesorjev")
+```
+
+Želel sem primerjati še najzmogljivejše procesorje in prikazati razlike med Intelom in AMD. AMD-jevi najzmogljivejši procesorji Threadripper, izdelani po letu 2014, imajo v povprečju višje frekvence, več tranzistorjev, ampak tudi višjo povprečno porabo energije od Intelove družine Xeon.
+
+
+### Primerjava grafičnih kartic NVIDIA in AMD
+
+Podobno primerjavo bom izpeljal še za grafične kartice.
+
+```{r}
+df %>% 
+  filter(Type=="GPU" & Vendor %in% c("NVIDIA", "AMD") & Release.Year >= 2010) %>% 
+  group_by(Release.Year, Vendor) %>% 
+  mutate(mean_process_size = round(mean(Process.Size..nm., na.rm = TRUE), 0)) %>% 
+  ggplot(aes(x=Release.Year, y=mean_process_size, group=Vendor, color=Vendor)) +
+  geom_line() +
+  labs(title="Primerjava nanometrske tehnologije med grafičnimi karticami NVIDIA in AMD", x="leto", y="velikost proizvodnega procesa")
+```
+
+Pri primerjavi velikosti tranzistorjev med največjima proizvajalcema grafičnih kartic so razlike precej manjše kot pri procesorjih. Oba proizvajalca sta v svojih grafičnih karticah uporabljala skoraj enake velikosti čipov. To je verjetno posledica, da obema podjetjema čipe dobavjla TSMC, zaradi česar ni prišlo do večjih razlik.
+
+```{r}
+df %>% filter(Type=="GPU" & Vendor %in% c("AMD", "NVIDIA") & Release.Year >= 2010) %>%
+  group_by(Release.Year, Vendor) %>% 
+  summarise(mean_frequency = mean(Freq..MHz., na.rm = TRUE)) %>% 
+  ggplot(aes(x=Release.Year, y=mean_frequency, color=Vendor, group=Vendor)) +
+  geom_line() +
+  labs(title="Primerjava frekvenc med grafičnimi karticami NVIDIA in AMD", x="leto", y="frekvenca (MHz)")
+```
+
+Iz zgornjega grafa je razvidno, da so imele NVIDIA grafične kartice skozi leta višje frekvence grafičnega procesorja kakor grafične kartice AMD.
+
+
+## Zaključek
+
+V tej analizi sem predstavil trend povečevanja zmogljivosti čipov, vgrajenih v procesorje in grafične kartice. Prikazal sem trend manjšanja velikosti tranzistorjev in s tem večanje njihovega tevila na tiskanih vezjih. Ugotovil sem, da Moorov zakon v zadnjih letih še vedno velja, predvsem to drži za čipe grafičnih kartic, katerih število tranzistorjev se je v zadnjih 5 letih močno povečalo in so s tem prehitele procesorje. Prikazal sem rast frekvenc skozi leta in ugotovil, da imajo grafične kartice v povprečju nižje frekvence, je pa njihova rast bolj konstantna kakor pri procesorjih.
+
+Pri ugotavljanju korelacij sem ugotovil, da se z manjšanjem velikosti proizvodnega procesa viša število tranzistorjev. Z višanjem frekvence procesorjev se povečuje njihova poraba energije, poraba energije pa se povečuje tudi z večanjem velikosti tiskanega vezja.
+
+V primerjavi procesorjev Intel in AMD sem opazil, da je AMD v zadnjih letih zažel uporabljati novejšo tehnologijo in je prehitel Intel v velikosti tranzistorjev.
+## Viri in literatura

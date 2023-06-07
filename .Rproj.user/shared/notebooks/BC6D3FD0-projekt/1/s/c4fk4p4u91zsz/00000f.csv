@@ -1,0 +1,2 @@
+"0","# Add release year column"
+"0","df %>% mutate(Release.Year = year(ymd(Release.Date)))"
